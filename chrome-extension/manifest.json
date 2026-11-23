@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Carrybee InboundIQ Parcel Bridge",
+  "version": "3.2.0",
+  "description": "Zero-API parcel & merchant bridge between Carrybee Ops Panel and Carrybee InboundIQ Call Desk.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://*.carrybee.com/*",
+    "https://*.workers.dev/*",
+    "http://localhost:5173/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.carrybee.com/*"],
+      "js": ["content-ops-scraper.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

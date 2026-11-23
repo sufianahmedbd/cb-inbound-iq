@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Carrybee InboundIQ — Smart Answers for Every Delivery</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFC801' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='24' height='24' rx='6' fill='%23114C5A' stroke='none'/%3E%3Cpath d='M12 3.5L19.5 7.8v8.4L12 20.5 4.5 16.2V7.8L12 3.5z'/%3E%3Cpath d='M12 12l7.5-4.2M12 12v8.5M12 12L4.5 7.8'/%3E%3C/svg%3E" />
+</head>
+<body>
+
+<!-- ZERO-FRICTION FIXED LOGIN GATE (PRE-PROVISIONED TEAM CREDENTIALS · SUPABASE AUTH) -->
+<section class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5L20 7v10l-8 4.5L4 17V7l8-4.5z"/>
+          <path d="M12 12l8-5M12 12v9.5M12 12L4 7"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Carrybee InboundIQ</h1>
+        <p>Smart Answers for Every Delivery</p>
+      </div>
+    </div>
+
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px">
+      Sign in with your pre-assigned Carrybee Login ID and fixed Password. Authenticated live against Supabase (<span class="mono">cvgrryozzonwfnwpjxuf</span>) with strict 5-role RLS.
+    </div>
+
+    <div class="auth-err" id="authError" hidden></div>
+
+    <form id="loginForm" autocomplete="off">
+      <label class="field" style="margin-bottom:12px">
+        <span>Login ID (Email) <span class="req">*</span></span>
+        <input type="email" id="loginEmail" required placeholder="e.g. rakib.c@carrybee.com" autocomplete="username">
+      </label>
+      <label class="field" style="margin-bottom:16px">
+        <span>Password <span class="req">*</span></span>
+        <div class="auth-pass-wrap">
+          <input type="password" id="loginPassword" required placeholder="Enter assigned password" autocomplete="current-password">
+          <button type="button" class="auth-pass-toggle" id="toggleLoginPass">Show</button>
+        </div>
+      </label>
+      <button type="submit" id="loginSubmitBtn" class="btn pri" style="width:100%;justify-content:center;padding:11px 16px;font-size:14px">
+        Sign In to Carrybee InboundIQ
+      </button>
+    </form>
+
+    <div class="muted" style="font-size:11.5px;margin-top:14px;text-align:center;line-height:1.45">
+      Need a new account or password reset? Contact an <b>InboundIQ Admin</b>.
+    </div>
+  </div>
+
+  <!-- Pre-Provisioned Team Accounts Roster -->
+  <details class="auth-roster" open>
+    <summary>
+      <span>Quick Sign-In Roster (10 Live Supabase Pre-Provisioned Accounts)</span>
+      <span class="pill acc" id="rosterCountPill">10 Active</span>
+    </summary>
+    <div class="muted" style="font-size:11.5px;margin-top:6px">
+      Click any team member below to authenticate via real <span class="mono">supabase.auth.signInWithPassword()</span>. New members provisioned in <b>Admin → Taxonomy v4 &amp; Role Access</b> sync immediately to Supabase Auth.
+    </div>
+    <div class="auth-roster-grid" id="quickRosterGrid"></div>
+  </details>
+</section>
+
+<div class="app-shell" id="appShell" hidden>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5L20 7v10l-8 4.5L4 17V7l8-4.5z"/>
+          <path d="M12 12l8-5M12 12v9.5M12 12L4 7"/>
+        </svg>
+      </div>
+      <div>Carrybee InboundIQ <small>Smart Answers for Every Delivery</small></div>
+    </div>
+
+    <!-- Role Switcher (Full 5-role inspector for Admin; Locked Role Badge for Agent/Call PIC/Supervisor/Management) -->
+    <div id="roleBarHost">
+      <div class="role-switcher" id="roleSwitcher" role="tablist" aria-label="Role Views">
+        <button data-role="agent" class="active">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          Agent
+        </button>
+        <button data-role="call_pic" title="Person In Charge (Agent + Supervisor)">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          Call PIC
+        </button>
+        <button data-role="supervisor">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          Supervisor
+        </button>
+        <button data-role="management">
+          <svg class="ic" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          Management
+        </button>
+        <button data-role="admin">
+          <svg class="ic" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Admin
+        </button>
+      </div>
+      <div class="locked-role-pill" id="lockedRolePill" hidden></div>
+    </div>
+
+    <div class="topbar-right">
+      <span class="db-live-pill" id="dbLivePill" title="Connected to Supabase Postgres + Realtime">
+        <span class="pulse"></span>
+        <span id="dbLiveText">Supabase Live</span>
+      </span>
+
+      <button class="top-pill" id="friBtn" title="Toggle Friday +2h SLA buffer rule (KAM & Accounts)">
+        <svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="friBtnLbl">Fri +2h SLA: Off</span>
+      </button>
+
+      <!-- 3 Theme Modes: Light | Soft | Dark -->
+      <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Theme Mode">
+        <button type="button" data-theme-set="light" class="active" title="Light Mode (Arctic Powder)">
+          <svg class="ic sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          Light
+        </button>
+        <button type="button" data-theme-set="soft" title="Soft Mode (Mystic Mint Low-Glare)">
+          <svg class="ic sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          Soft
+        </button>
+        <button type="button" data-theme-set="dark" title="Dark Mode (Oceanic Noir)">
+          <svg class="ic sm" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          Dark
+        </button>
+      </div>
+
+      <span class="user-chip" id="userChip" title="Signed-in Team Member">
+        <span class="u-dot"></span>
+        <b id="userChipName">—</b>
+      </span>
+      <button class="top-pill" id="signOutBtn" title="Sign out and switch account">Sign Out</button>
+      <span class="clock-chip" id="liveClock">11:30 AM</span>
+    </div>
+  </div>
+</header>
+
+<div class="subnav">
+  <div class="subnav-in">
+    <div class="sub-tabs" id="subTabs"></div>
+    <div class="role-context" id="roleContext"></div>
+  </div>
+</div>
+
+<main id="app"></main>
+</div>
+<div id="modalRoot"></div>
+<div id="toast" hidden></div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

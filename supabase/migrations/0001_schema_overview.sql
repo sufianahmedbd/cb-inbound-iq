@@ -1,0 +1,23 @@
+-- Carrybee InboundIQ (PRD v3.2) — Reference Schema Snapshot
+-- Live deployed to Supabase project `cb-inbound-iq` (`cvgrryozzonwfnwpjxuf`, ap-southeast-1)
+-- Migrations applied: `init_carrybee_inboundiq_v32` and `rls_and_rpc_v32`
+
+-- Core Tables:
+--   1. public.profiles (5-Role RBAC: Agent, Call PIC, Supervisor, Management, Admin)
+--   2. public.root_cause_catalog (RC-01..RC-64 -> 5 Accountability Buckets)
+--   3. public.taxonomy_matrix (49 Master Reasons, Track A / Track B / DUAL / NONE, Friday +2h SLA)
+--   4. public.global_category_catalog (70 verbatim Global Category/Sub-Category pairs)
+--   5. public.synced_hub_master (32 Nationwide Hubs across ISD, OSD, CTG)
+--   6. public.merchant_kam_directory (Strict 5-Col KAM Master sync)
+--   7. public.merchant_business_fallback (Registered businesses defaulting to Complaint Management)
+--   8. public.parcel_lookup_cache (Chrome Extension MV3 & parcel snapshots)
+--   9. public.churn_score_config (Live Admin-editable Churn Risk Score weights)
+--  10. public.sheet_registry (8 Live Google Workspace Spreadsheets)
+--  11. public.call_logs (Ticketed + Non-ticketed Log-Only calls + 10m callback claim locks)
+--  12. public.crm_tickets (Unified Track A Global 'MX' + Track B Hub-and-Spoke tickets)
+--  13. public.crm_ticket_events (Immutable chronological timeline events)
+--  14. public.sync_outbox (Idempotent async dual-write queue)
+--  15. public.global_overflow_watch (W-1/W-2 OSD row 2211 overflow protection)
+--  16. public.sync_cursors (Watermarks for 60s Global Read-Through & 15m KAM sync)
+--  17. public.audit_logs (Immutable PII CSV export & Admin User/Config governance trail)
+--  18. public.crm_leads (Lead-to-Handover conversion tracking)

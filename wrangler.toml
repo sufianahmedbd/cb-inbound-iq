@@ -1,0 +1,39 @@
+# ============================================================================
+# wrangler.toml — Carrybee InboundIQ ("Smart Answers for Every Delivery") v3.2
+# Full-Stack Cloudflare Worker (Hono API + Cron Sync Engines + Static SPA Assets)
+# ============================================================================
+name = "cb-inbound-iq"
+main = "worker/index.ts"
+compatibility_date = "2025-03-01"
+
+[assets]
+directory = "./dist/client"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[vars]
+APP_TIMEZONE = "Asia/Dhaka"
+GLOBAL_TRACKER_CHANNEL = "MX"
+GLOBAL_TRACKER_SUPABASE_PROJECT = "kssypfibhlmoxucabhdu"
+CRM_SUPABASE_URL = "https://cvgrryozzonwfnwpjxuf.supabase.co"
+CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2Z3JyeW96em9ud2Zud3BqeHVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0NTgzOTAsImV4cCI6MjExMTAzNDM5MH0.397QtwewcThwKAJ_Kjvl-Ijo7XyqMVUyr6VVUmCO2Qo"
+
+# === LIVE GOOGLE SHEETS REGISTRY (ALL 8 SPREADSHEETS — PRD §4.1) ===
+SHEET_MASTER_FALLBACK_HUB_ID = "1JE5xO8tDoyw9VP8iVQtItqp_NIS5bbNq_2_9jGNXbLQ"
+SHEET_TEAM_BUSINESS_KAM_ID   = "1f_nY7jq8OVAOnbMTt4fm8jxMshpt7tIkPliNtUJmVX4"
+SHEET_TEAM_TECH_PRODUCT_ID   = "1j2N739pVRgF4bI58hODJVPava0dPXwLdHJT8JkM42IY"
+SHEET_TEAM_ACCOUNTS_ID       = "1hxJH5oiclcNe2KywwrF2EpZFjWVbjFRszPc63iZqzcc"
+SHEET_TEAM_ACTIVATION_ID     = "1ivLXZ9Ph7wiyC-pMiptaX9lqwvbfutOoO0TS0HqQisU"
+SHEET_TEAM_SUPPLY_SAFETY_ID  = "1XBHcL8WyBmqoselx3_WU9lmpaVpJCpnHyiJ-sbZOK7Y"
+SHEET_TEAM_ISSUE_RES_ID      = "12OvnVgG0geVfZtys6RuVxslpxvc8k6VBnIJcf9c7zYI"
+SHEET_MERCHANT_KAM_MASTER_ID = "1PEVhZtbunfZB7qAvC6N1NQ5pSMZYQOsDYOjHXgfb2vg"
+SHEET_TAXONOMY_V4_REF_ID     = "1zbqp2FeH8SeeVPlJ_tL436RA10YXpqhCnJPu5eV6WBk"
+
+# Independent Cron Triggers (Workaround W-3: zero reliance on Global Vercel cron)
+[triggers]
+crons = [
+  "* * * * *",
+  "*/2 * * * *",
+  "*/15 * * * *"
+]
