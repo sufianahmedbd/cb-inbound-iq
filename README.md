@@ -22,6 +22,20 @@ npx wrangler dev --port 8787
 npm run dev
 ```
 
+## Hive Order Bridge (Chrome Extension)
+
+The `chrome-extension/` folder contains an unpacked Chrome Manifest V3 extension for transferring the currently visible order from the user's authenticated `hive.carrybee.com/orders` tab to InboundIQ in the same browser. It only captures when the user clicks **Send visible order to InboundIQ**; the snapshot is stored in that browser's Chrome extension local storage and is not sent to the Worker backend. The CRM's **Pull from Hive** button retrieves the captured order and checks that its consignment ID matches the CRM form.
+
+To install for development/testing:
+
+1. In Chrome, open `chrome://extensions` and turn on **Developer mode**.
+2. Choose **Load unpacked** and select this repository's `chrome-extension` folder.
+3. Sign in to Hive as usual and open the matching order at `https://hive.carrybee.com/orders`.
+4. Click **Send visible order to InboundIQ** on the Hive page.
+5. In the deployed CRM (or local Vite page), enter the same consignment ID and click **Pull from Hive**.
+
+The extractor supports the sample consignment pattern `F/E/R` plus 10 alphanumeric characters (for example `F1123B48SNR`) as well as legacy `CB` IDs, and reads visible details such as current status/hub, pickup and last-mile hubs, collectable amount, business, merchant order ID, destination, payment status, and order-log rows. Hive's authenticated DOM isn't available in this repository, so confirm extracted values against a real order before relying on them. The extension never bypasses Hive authentication and cannot access an order the signed-in user cannot see. Reload the extension from `chrome://extensions` after code changes.
+
 ## Deploy to Cloudflare Workers
 
 1. Authenticate Wrangler and set server-side secrets (never committed to Git):

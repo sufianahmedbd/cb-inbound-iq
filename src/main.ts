@@ -1286,12 +1286,79 @@ import {
     }
   }
 
+  function isConsignmentId(value) {
+    return /^(?:CB[0-9]{6,12}|[FER][A-Z0-9]{10})$/.test(String(value || '').trim().toUpperCase());
+  }
+
+  function pullHiveParcel() {
+    const c = STATE.call;
+    const requestedId = (c.consignment || '').trim().toUpperCase();
+    if (!isConsignmentId(requestedId)) {
+      showToast('Enter a valid consignment ID first.');
+      return;
+    }
+    c.parcelLoading = true;
+    renderCallDesk(true);
+    const requestId = crypto.randomUUID();
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', receive);
+      if (STATE.call.consignment === requestedId) {
+        STATE.call.parcelLoading = false;
+        renderCallDesk(true);
+        showToast('No extension response. Install/enable the InboundIQ browser extension, then capture the order in Hive.');
+      }
+    }, 2500);
+    function receive(event) {
+      if (event.source !== window || event.data?.source !== 'inboundiq-extension' || event.data?.type !== 'HIVE_PARCEL_RESULT' || event.data?.requestId !== requestId) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', receive);
+      if (STATE.call.consignment !== requestedId) return;
+      const snapshot = event.data.payload;
+      STATE.call.parcelLoading = false;
+      if (!snapshot || snapshot.consignment_id?.toUpperCase() !== requestedId) {
+        renderCallDesk(true);
+        showToast(snapshot ? `Hive has ${snapshot.consignment_id}, not ${requestedId}. Capture the matching order first.` : 'No Hive order saved in this browser yet.');
+        return;
+      }
+      const capturedAt = snapshot.captured_at ? new Date(snapshot.captured_at).getTime() : Date.now();
+      const rawCod = String(snapshot.collectable_amount || snapshot.cod_amount || '').replace(/[^\d.]/g, '');
+      const hub = snapshot.current_hub || snapshot.hub_name || snapshot.last_mile_hub || 'Not shown in Hive order';
+      const zone = /agrabad|chatt?ogram|ctg/i.test(hub) ? 'CTG' : /bogura|sylhet/i.test(hub) ? 'OSD' : 'ISD';
+      STATE.call.parcel = {
+        id: requestedId,
+        status: snapshot.current_status || 'Status not shown',
+        hub,
+        zone,
+        rider: snapshot.rider || 'Not shown',
+        riderPhone: snapshot.rider_phone || 'Not shown',
+        merchant: snapshot.merchant || '',
+        cod: rawCod ? Number(rawCod) : 0,
+        dest: snapshot.destination || 'Not shown',
+        pickupHub: snapshot.pickup_hub || '',
+        lastMileHub: snapshot.last_mile_hub || '',
+        paymentStatus: snapshot.payment_status || '',
+        hubPaymentStatus: snapshot.hub_payment_status || '',
+        merchantOrderId: snapshot.merchant_order_id || '',
+        weight: snapshot.weight || '',
+        quantity: snapshot.quantity || '',
+        lastScan: capturedAt,
+        scans: (snapshot.order_logs || snapshot.scans || []).map((text) => ({ at: capturedAt, text }))
+      };
+      if (!c.trkEdited.hub) c.trkHub = hub;
+      if (!c.trkEdited.zone) c.trkZone = zone;
+      renderCallDesk(true);
+      showToast(`Pulled ${requestedId} from Hive order captured in this browser.`);
+    }
+    window.addEventListener('message', receive);
+    window.postMessage({ source: 'inboundiq-crm', type: 'GET_HIVE_PARCEL', requestId }, location.origin);
+  }
+
   function triggerParcelLookup(rawId) {
     const clean = rawId.trim().toUpperCase();
     const c = STATE.call;
     c.consignment = clean;
     c.parcel = null;
-    if (!/^CB\d{6,12}$/.test(clean)) { c.parcelLoading = false; renderCallDesk(true); return; }
+    if (!isConsignmentId(clean)) { c.parcelLoading = false; renderCallDesk(true); return; }
     c.parcelLoading = true;
     renderCallDesk(true);
     setTimeout(() => {
@@ -1299,25 +1366,15 @@ import {
       c.parcelLoading = false;
       if (PARCEL_MASTER[clean]) {
         c.parcel = JSON.parse(JSON.stringify(PARCEL_MASTER[clean]));
+        if (!c.trkEdited.hub) c.trkHub = c.parcel.hub;
+        if (!c.trkEdited.zone) c.trkZone = c.parcel.zone;
+        renderCallDesk(true);
+        showToast(`Loaded demo parcel ${clean}. Use Pull from Hive for live order details.`);
       } else {
-        const pickHub = HUBS[clean.charCodeAt(clean.length - 1) % HUBS.length];
-        const pickZone = pickHub.includes('Agrabad') ? 'CTG' : (pickHub.includes('Bogura') || pickHub.includes('Sylhet')) ? 'OSD' : 'ISD';
-        c.parcel = {
-          id: clean, status: 'In Transit', hub: pickHub, zone: pickZone,
-          rider: 'Ariful Islam', riderPhone: '01712-908811',
-          merchant: c.merchant ? c.merchant.bizName : 'CarryBee Partner Store',
-          cod: 1250, dest: pickHub.replace(' Hub', ''), lastScan: minsAgo(240),
-          scans: [
-            { at: minsAgo(880), text: 'Picked up from merchant' },
-            { at: minsAgo(480), text: 'Dispatched from Central Sorting Hub' },
-            { at: minsAgo(240), text: `Received at ${pickHub}` }
-          ]
-        };
+        c.parcel = null;
+        renderCallDesk(true);
+        showToast(`No demo data for ${clean}. Capture this order in Hive, then choose Pull from Hive.`);
       }
-      if (!c.trkEdited.hub) c.trkHub = c.parcel.hub;
-      if (!c.trkEdited.zone) c.trkZone = c.parcel.zone;
-      renderCallDesk(true);
-      showToast(`Chrome Extension pulled ${clean}: ${c.parcel.hub} (${c.parcel.zone})`);
     }, 340);
   }
 
@@ -1970,6 +2027,7 @@ import {
                 <div style="display:flex;gap:8px;margin-bottom:8px">
                   <input type="text" id="consInput" value="${esc(c.consignment)}" placeholder="Primary Consignment ID (e.g. CB2611004512)">
                   <button type="button" class="btn soft" id="lookupParcelBtn">${ic('search', 'sm')} Lookup</button>
+                  <button type="button" class="btn" id="pullHiveParcelBtn" title="Pull the matching order previously captured from Hive in this browser">Pull from Hive</button>
                   <button type="button" class="btn" id="addExtraConsBtn" title="Edge Case E-03: Attach additional consignment IDs to this issue">+ Multi-Parcel (E-03)</button>
                 </div>
                 ${c.extraConsignments.length ? `
@@ -1990,7 +2048,11 @@ import {
                     <div class="parcel-grid">
                       <div><span>Concern Hub</span><b>${esc(c.parcel.hub)}</b></div>
                       <div><span>Rider</span><b>${esc(c.parcel.rider)} (${esc(c.parcel.riderPhone)})</b></div>
-                      <div><span>COD · Destination</span><b>Tk ${c.parcel.cod} · ${esc(c.parcel.dest)}</b></div>
+                      <div><span>Collectable · Destination</span><b>Tk ${c.parcel.cod} · ${esc(c.parcel.dest)}</b></div>
+                      ${c.parcel.merchant || c.parcel.merchantOrderId ? `<div><span>Business · Merchant Order</span><b>${esc(c.parcel.merchant || '—')} · ${esc(c.parcel.merchantOrderId || '—')}</b></div>` : ''}
+                      ${c.parcel.pickupHub || c.parcel.lastMileHub ? `<div><span>Pickup · Last Mile Hub</span><b>${esc(c.parcel.pickupHub || '—')} · ${esc(c.parcel.lastMileHub || c.parcel.hub)}</b></div>` : ''}
+                      ${c.parcel.paymentStatus || c.parcel.hubPaymentStatus ? `<div><span>Payment · Hub Payment</span><b>${esc(c.parcel.paymentStatus || '—')} · ${esc(c.parcel.hubPaymentStatus || '—')}</b></div>` : ''}
+                      ${c.parcel.weight || c.parcel.quantity ? `<div><span>Weight · Quantity</span><b>${esc(c.parcel.weight || '—')} · ${esc(c.parcel.quantity || '—')}</b></div>` : ''}
                     </div>
                     <div class="parcel-scans">
                       ${c.parcel.scans.map(s => `<div><span class="mono muted" style="min-width:130px">${fmtStamp(new Date(s.at))}</span><span>${esc(s.text)}</span></div>`).join('')}
@@ -2210,6 +2272,8 @@ import {
     document.querySelectorAll('[data-sample-cb]').forEach(b => b.addEventListener('click', () => triggerParcelLookup(b.dataset.sampleCb)));
     const lBtn = document.getElementById('lookupParcelBtn');
     if (lBtn) lBtn.addEventListener('click', () => triggerParcelLookup(document.getElementById('consInput').value));
+    const hiveBtn = document.getElementById('pullHiveParcelBtn');
+    if (hiveBtn) hiveBtn.addEventListener('click', pullHiveParcel);
     const addEx = document.getElementById('addExtraConsBtn');
     if (addEx) addEx.addEventListener('click', () => {
       const nextId = `CB261100${Math.floor(1000 + Math.random() * 8999)}`;
@@ -2225,7 +2289,7 @@ import {
     const cInp = document.getElementById('consInput');
     if (cInp) cInp.addEventListener('input', e => {
       STATE.call.consignment = e.target.value.trim().toUpperCase();
-      if (/^CB\d{10}$/.test(STATE.call.consignment) && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) triggerParcelLookup(STATE.call.consignment);
+      if (PARCEL_MASTER[STATE.call.consignment] && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) triggerParcelLookup(STATE.call.consignment);
       else renderCallDesk(true);
     });
 
