@@ -22,6 +22,20 @@ npx wrangler dev --port 8787
 npm run dev
 ```
 
+## Hive Order Bridge (Chrome Extension)
+
+The `chrome-extension/` folder contains an unpacked Chrome Manifest V3 extension for transferring exactly one filtered order row from the user's authenticated `hive.carrybee.com/orders` tab to InboundIQ in the same browser. It only captures when the URL has a valid `consignmentId` and exactly one matching order row is visible. It extracts only the 16 approved values in the six documented sections, stores them in that browser's Chrome extension local storage, and never uploads the snapshot to the Worker backend. Entering a supported consignment ID in the CRM automatically requests the matching saved snapshot; **Pull from Hive** is available as a manual retry.
+
+To install for development/testing:
+
+1. In Chrome, open `chrome://extensions` and turn on **Developer mode**.
+2. Choose **Load unpacked** and select this repository's `chrome-extension` folder.
+3. Sign in to Hive as usual and open the matching order at `https://hive.carrybee.com/orders`.
+4. Keep the Hive search filtered to one consignment. When exactly one matching result row is visible, the extension captures it automatically; the button can be used to retry.
+5. In the CRM in the same Chrome profile, enter that consignment ID. The CRM automatically loads the stored matching snapshot; **Pull from Hive** is available as a manual retry.
+
+The extension supports `F`, `E`, or `R` followed by 10 alphanumeric characters (for example `F1123B48SNR`) and legacy `CB` IDs. It extracts only the six approved groups: consignment times, business name/ID/owner number, receiver name/number/address, attempt/status, pickup/current/LMH hubs, and parcel/COD amounts. It rejects pages with zero or multiple visible order rows. Hive's authenticated DOM isn't available in this repository, so verify the extraction against a real order before relying on it. The extension never bypasses Hive authentication and cannot access an order the signed-in user cannot see. Reload the extension from `chrome://extensions` after code changes.
+
 ## Deploy to Cloudflare Workers
 
 1. Authenticate Wrangler and set server-side secrets (never committed to Git):

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Carrybee InboundIQ Parcel Bridge",
-  "version": "3.2.0",
-  "description": "Zero-API parcel & merchant bridge between Carrybee Ops Panel and Carrybee InboundIQ Call Desk.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "version": "3.5.0",
+  "description": "Manually transfer the currently visible Carrybee Hive order into InboundIQ in the same browser.",
+  "permissions": ["activeTab", "storage"],
   "host_permissions": [
     "https://*.carrybee.com/*",
     "https://*.workers.dev/*",
@@ -14,8 +14,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.carrybee.com/*"],
+      "matches": ["https://hive.carrybee.com/orders*"],
       "js": ["content-ops-scraper.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.workers.dev/*", "http://localhost:5173/*"],
+      "js": ["content-crm-bridge.js"],
       "run_at": "document_idle"
     }
   ]

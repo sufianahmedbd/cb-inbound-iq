@@ -1286,12 +1286,83 @@ import {
     }
   }
 
+  function isConsignmentId(value) {
+    return /^(?:CB[0-9]{6,12}|[FER][A-Z0-9]{10})$/.test(String(value || '').trim().toUpperCase());
+  }
+
+  function pullHiveParcel() {
+    const c = STATE.call;
+    const requestedId = (c.consignment || '').trim().toUpperCase();
+    if (!isConsignmentId(requestedId)) {
+      showToast('Enter a valid consignment ID first.');
+      return;
+    }
+    c.parcelLoading = true;
+    renderCallDesk(true);
+    const requestId = crypto.randomUUID();
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', receive);
+      if (STATE.call.consignment === requestedId) {
+        STATE.call.parcelLoading = false;
+        renderCallDesk(true);
+        showToast('No extension response. Install/enable the InboundIQ browser extension, then capture the order in Hive.');
+      }
+    }, 2500);
+    function receive(event) {
+      if (event.source !== window || event.data?.source !== 'inboundiq-extension' || event.data?.type !== 'HIVE_PARCEL_RESULT' || event.data?.requestId !== requestId) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', receive);
+      if (STATE.call.consignment !== requestedId) return;
+      const snapshot = event.data.payload;
+      STATE.call.parcelLoading = false;
+      if (!snapshot || snapshot.consignment_id?.toUpperCase() !== requestedId) {
+        renderCallDesk(true);
+        showToast(snapshot ? `Hive has ${snapshot.consignment_id}, not ${requestedId}. Capture the matching order first.` : 'No Hive order saved in this browser yet.');
+        return;
+      }
+      const amount = Number(String(snapshot.parcel_amount || '').replace(/[^\d.]/g, '')) || 0;
+      const currentHub = snapshot.current_hub || '';
+      const zone = /chatt?ogram|ctg/i.test(currentHub) ? 'CTG' : /bogura|sylhet/i.test(currentHub) ? 'OSD' : 'ISD';
+      STATE.call.parcel = {
+        id: requestedId,
+        created_ago: snapshot.created_ago || '',
+        created_at: snapshot.created_at || '',
+        business_name: snapshot.business_name || '',
+        business_id: snapshot.business_id || '',
+        business_owner_number: snapshot.business_owner_number || '',
+        customer_name: snapshot.customer_name || '',
+        customer_number: snapshot.customer_number || '',
+        customer_address: snapshot.customer_address || '',
+        delivery_attempt_count: snapshot.delivery_attempt_count || '',
+        current_parcel_status: snapshot.current_parcel_status || '',
+        pickup_hub: snapshot.pickup_hub || '',
+        current_hub: currentHub,
+        lmh_hub: snapshot.lmh_hub || '',
+        parcel_amount: snapshot.parcel_amount || '',
+        cod_amount: snapshot.cod_amount || '',
+        // Internal aliases derive from the approved fields only for existing CRM routing.
+        status: snapshot.current_parcel_status || 'Status not shown',
+        hub: currentHub || 'Not shown',
+        zone,
+        merchant: snapshot.business_name || '',
+        cod: amount,
+        dest: snapshot.customer_address || ''
+      };
+      if (!c.trkEdited.hub && currentHub) c.trkHub = currentHub;
+      if (!c.trkEdited.zone) c.trkZone = zone;
+      renderCallDesk(true);
+      showToast(`Pulled ${requestedId} from Hive order captured in this browser.`);
+    }
+    window.addEventListener('message', receive);
+    window.postMessage({ source: 'inboundiq-crm', type: 'GET_HIVE_PARCEL', requestId }, location.origin);
+  }
+
   function triggerParcelLookup(rawId) {
     const clean = rawId.trim().toUpperCase();
     const c = STATE.call;
     c.consignment = clean;
     c.parcel = null;
-    if (!/^CB\d{6,12}$/.test(clean)) { c.parcelLoading = false; renderCallDesk(true); return; }
+    if (!isConsignmentId(clean)) { c.parcelLoading = false; renderCallDesk(true); return; }
     c.parcelLoading = true;
     renderCallDesk(true);
     setTimeout(() => {
@@ -1299,25 +1370,15 @@ import {
       c.parcelLoading = false;
       if (PARCEL_MASTER[clean]) {
         c.parcel = JSON.parse(JSON.stringify(PARCEL_MASTER[clean]));
+        if (!c.trkEdited.hub) c.trkHub = c.parcel.hub;
+        if (!c.trkEdited.zone) c.trkZone = c.parcel.zone;
+        renderCallDesk(true);
+        showToast(`Loaded demo parcel ${clean}. Use Pull from Hive for live order details.`);
       } else {
-        const pickHub = HUBS[clean.charCodeAt(clean.length - 1) % HUBS.length];
-        const pickZone = pickHub.includes('Agrabad') ? 'CTG' : (pickHub.includes('Bogura') || pickHub.includes('Sylhet')) ? 'OSD' : 'ISD';
-        c.parcel = {
-          id: clean, status: 'In Transit', hub: pickHub, zone: pickZone,
-          rider: 'Ariful Islam', riderPhone: '01712-908811',
-          merchant: c.merchant ? c.merchant.bizName : 'CarryBee Partner Store',
-          cod: 1250, dest: pickHub.replace(' Hub', ''), lastScan: minsAgo(240),
-          scans: [
-            { at: minsAgo(880), text: 'Picked up from merchant' },
-            { at: minsAgo(480), text: 'Dispatched from Central Sorting Hub' },
-            { at: minsAgo(240), text: `Received at ${pickHub}` }
-          ]
-        };
+        c.parcel = null;
+        renderCallDesk(true);
+        showToast(`No demo data for ${clean}. Capture this order in Hive, then choose Pull from Hive.`);
       }
-      if (!c.trkEdited.hub) c.trkHub = c.parcel.hub;
-      if (!c.trkEdited.zone) c.trkZone = c.parcel.zone;
-      renderCallDesk(true);
-      showToast(`Chrome Extension pulled ${clean}: ${c.parcel.hub} (${c.parcel.zone})`);
     }, 340);
   }
 
@@ -1970,6 +2031,7 @@ import {
                 <div style="display:flex;gap:8px;margin-bottom:8px">
                   <input type="text" id="consInput" value="${esc(c.consignment)}" placeholder="Primary Consignment ID (e.g. CB2611004512)">
                   <button type="button" class="btn soft" id="lookupParcelBtn">${ic('search', 'sm')} Lookup</button>
+                  <button type="button" class="btn" id="pullHiveParcelBtn" title="Pull the matching order previously captured from Hive in this browser">Pull from Hive</button>
                   <button type="button" class="btn" id="addExtraConsBtn" title="Edge Case E-03: Attach additional consignment IDs to this issue">+ Multi-Parcel (E-03)</button>
                 </div>
                 ${c.extraConsignments.length ? `
@@ -1978,22 +2040,16 @@ import {
                     ${c.extraConsignments.map((ec, idx) => `<span class="tag-chip">${esc(ec)} <button type="button" data-rm-extra="${idx}">×</button></span>`).join('')}
                   </div>
                 ` : ''}
-                ${c.parcelLoading ? `<div class="parcel-card muted">Pulling live scan data from CarryBee Parcel Master...</div>` : ''}
+                ${c.parcelLoading ? `<div class="parcel-card muted">Loading the matching Hive search result from this browser...</div>` : ''}
                 ${c.parcel ? `
                   <div class="parcel-card">
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                      <b class="mono">${esc(c.parcel.id)}</b>
-                      <span class="pill ${c.parcel.status === 'Delivered' ? 'good' : 'warn'}">${esc(c.parcel.status)}</span>
-                      <span class="pill acc">${esc(c.parcel.zone)}</span>
-                      <span class="muted" style="margin-left:auto;font-size:11.5px">Live Extension Sync</span>
-                    </div>
-                    <div class="parcel-grid">
-                      <div><span>Concern Hub</span><b>${esc(c.parcel.hub)}</b></div>
-                      <div><span>Rider</span><b>${esc(c.parcel.rider)} (${esc(c.parcel.riderPhone)})</b></div>
-                      <div><span>COD · Destination</span><b>Tk ${c.parcel.cod} · ${esc(c.parcel.dest)}</b></div>
-                    </div>
-                    <div class="parcel-scans">
-                      ${c.parcel.scans.map(s => `<div><span class="mono muted" style="min-width:130px">${fmtStamp(new Date(s.at))}</span><span>${esc(s.text)}</span></div>`).join('')}
+                    <div class="parcel-sections">
+                      <section><h4>1. Consignment Info</h4><div class="parcel-grid"><div><span>Consignment ID</span><b>${esc(c.parcel.id)}</b></div><div><span>Created Ago</span><b>${esc(c.parcel.created_ago || '—')}</b></div><div><span>Created At</span><b>${esc(c.parcel.created_at || '—')}</b></div></div></section>
+                      <section><h4>2. Business Info</h4><div class="parcel-grid"><div><span>Business Name</span><b>${esc(c.parcel.business_name || '—')}</b></div><div><span>Business ID</span><b>${esc(c.parcel.business_id || '—')}</b></div><div><span>Business Owner Number</span><b>${esc(c.parcel.business_owner_number || '—')}</b></div></div></section>
+                      <section><h4>3. Receiver Info</h4><div class="parcel-grid"><div><span>Customer Name</span><b>${esc(c.parcel.customer_name || '—')}</b></div><div><span>Customer Number</span><b>${esc(c.parcel.customer_number || '—')}</b></div><div><span>Customer Address</span><b>${esc(c.parcel.customer_address || '—')}</b></div></div></section>
+                      <section><h4>4. Order Status</h4><div class="parcel-grid"><div><span>Delivery Attempt Count</span><b>${esc(c.parcel.delivery_attempt_count || '—')}</b></div><div><span>Current Parcel Status</span><b>${esc(c.parcel.current_parcel_status || '—')}</b></div></div></section>
+                      <section><h4>5. Hub Info</h4><div class="parcel-grid"><div><span>Pickup Hub</span><b>${esc(c.parcel.pickup_hub || '—')}</b></div><div><span>Current Hub</span><b>${esc(c.parcel.current_hub || '—')}</b></div><div><span>LMH Hub</span><b>${esc(c.parcel.lmh_hub || '—')}</b></div></div></section>
+                      <section><h4>6. COD &amp; Fees</h4><div class="parcel-grid"><div><span>Parcel Amount</span><b>${c.parcel.parcel_amount ? `৳${esc(c.parcel.parcel_amount)}` : '—'}</b></div><div><span>COD Amount</span><b>${c.parcel.cod_amount ? `৳${esc(c.parcel.cod_amount)}` : '—'}</b></div></div></section>
                     </div>
                     ${pHint ? `<div class="parcel-hint">${ic('alert', 'sm')} ${esc(pHint)}</div>` : ''}
                   </div>
@@ -2210,6 +2266,8 @@ import {
     document.querySelectorAll('[data-sample-cb]').forEach(b => b.addEventListener('click', () => triggerParcelLookup(b.dataset.sampleCb)));
     const lBtn = document.getElementById('lookupParcelBtn');
     if (lBtn) lBtn.addEventListener('click', () => triggerParcelLookup(document.getElementById('consInput').value));
+    const hiveBtn = document.getElementById('pullHiveParcelBtn');
+    if (hiveBtn) hiveBtn.addEventListener('click', pullHiveParcel);
     const addEx = document.getElementById('addExtraConsBtn');
     if (addEx) addEx.addEventListener('click', () => {
       const nextId = `CB261100${Math.floor(1000 + Math.random() * 8999)}`;
@@ -2225,8 +2283,14 @@ import {
     const cInp = document.getElementById('consInput');
     if (cInp) cInp.addEventListener('input', e => {
       STATE.call.consignment = e.target.value.trim().toUpperCase();
-      if (/^CB\d{10}$/.test(STATE.call.consignment) && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) triggerParcelLookup(STATE.call.consignment);
-      else renderCallDesk(true);
+      if (PARCEL_MASTER[STATE.call.consignment] && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) {
+        triggerParcelLookup(STATE.call.consignment);
+      } else if (isConsignmentId(STATE.call.consignment) && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) {
+        renderCallDesk(true);
+        window.setTimeout(() => {
+          if (STATE.call.consignment === e.target.value.trim().toUpperCase() && (!STATE.call.parcel || STATE.call.parcel.id !== STATE.call.consignment)) pullHiveParcel();
+        }, 0);
+      } else renderCallDesk(true);
     });
 
     const gCatEl = document.getElementById('trkGCatSel');
