@@ -1290,6 +1290,12 @@ import {
     return /^(?:CB[0-9]{6,12}|[FER][A-Z0-9]{10})$/.test(String(value || '').trim().toUpperCase());
   }
 
+  function suggestZoneForHub(hub) {
+    if (/agrabad|chatt?ogram|ctg/i.test(hub || '')) return 'CTG';
+    if (/bogura|sylhet/i.test(hub || '')) return 'OSD';
+    return 'ISD';
+  }
+
   function pullHiveParcel() {
     const c = STATE.call;
     const requestedId = (c.consignment || '').trim().toUpperCase();
@@ -1322,7 +1328,7 @@ import {
       }
       const amount = Number(String(snapshot.parcel_amount || '').replace(/[^\d.]/g, '')) || 0;
       const currentHub = snapshot.current_hub || '';
-      const zone = /chatt?ogram|ctg/i.test(currentHub) ? 'CTG' : /bogura|sylhet/i.test(currentHub) ? 'OSD' : 'ISD';
+      const zone = suggestZoneForHub(snapshot.lmh_hub || currentHub || snapshot.pickup_hub || '');
       STATE.call.parcel = {
         id: requestedId,
         created_ago: snapshot.created_ago || '',
@@ -1348,8 +1354,9 @@ import {
         cod: amount,
         dest: snapshot.customer_address || ''
       };
-      if (!c.trkEdited.hub && currentHub) c.trkHub = currentHub;
-      if (!c.trkEdited.zone) c.trkZone = zone;
+      if (!c.trkEdited.hub) c.trkHub = snapshot.lmh_hub || currentHub || snapshot.pickup_hub || '';
+      // Leave Zone unselected so the agent chooses ISD/OSD/CTG using the LMH-based suggestion.
+      if (!c.trkEdited.zone) c.trkZone = '';
       renderCallDesk(true);
       showToast(`Pulled ${requestedId} from Hive order captured in this browser.`);
     }
@@ -1709,6 +1716,11 @@ import {
     const quickReasons = TAXONOMY.filter(x => (!c.callerType || x.users.includes(c.callerType)) && (!c.callType || x.callType === c.callType)).slice(0, 6);
     const pHint = parcelDiscrepancyHint(c.parcel, c.note, r);
     const gp = r ? effectiveGlobalPair(c, r) : null;
+    const hiveHubSuggestions = c.parcel ? [c.parcel.lmh_hub, c.parcel.current_hub, c.parcel.pickup_hub].filter(Boolean) : [];
+    const concernHubOptions = [...new Set([...hiveHubSuggestions, ...HUBS])];
+    const selectedConcernHub = c.trkHub || hiveHubSuggestions[0] || (c.parcel && c.parcel.hub) || HUBS[0];
+    const zoneSuggestionHub = selectedConcernHub || (c.parcel && (c.parcel.lmh_hub || c.parcel.current_hub || c.parcel.pickup_hub));
+    const suggestedConcernZone = zoneSuggestionHub ? suggestZoneForHub(zoneSuggestionHub) : '';
 
     // PRD v3.2 Validation Guards:
     // - 1-click fast save for Dropped / Callback / No Answer / Call Type = None
@@ -2127,16 +2139,18 @@ import {
                     </label>
                     <div class="cols2" style="gap:8px">
                       <label class="field">
-                        <span>Concern Hub <span class="src-tag ${c.trkEdited.hub ? 'ed' : ''}">${c.trkEdited.hub ? 'edited' : 'parcel'}</span></span>
+                        <span>Concern Hub <span class="src-tag ${c.trkEdited.hub ? 'ed' : ''}">${c.trkEdited.hub ? 'agent selected' : hiveHubSuggestions.length ? 'LMH default' : 'choose'}</span></span>
                         <select id="trkHubSel">
-                          ${HUBS.map(h => `<option ${(c.trkHub || (c.parcel && c.parcel.hub) || 'Uttara Hub') === h ? 'selected' : ''}>${h}</option>`).join('')}
+                          ${concernHubOptions.map(h => `<option value="${esc(h)}" ${selectedConcernHub === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}
                         </select>
                       </label>
                       <label class="field">
-                        <span>Zone <span class="src-tag ${c.trkEdited.zone ? 'ed' : ''}">${c.trkEdited.zone ? 'edited' : 'parcel'}</span></span>
+                        <span>Zone <span class="src-tag ${c.trkEdited.zone ? 'ed' : ''}">${c.trkEdited.zone ? 'agent selected' : 'manual selection'}</span></span>
                         <select id="trkZoneSel">
-                          ${ZONES.map(z => `<option ${(c.trkZone || (c.parcel && c.parcel.zone) || 'ISD') === z ? 'selected' : ''}>${z}</option>`).join('')}
+                          <option value="" disabled ${!c.trkZone ? 'selected' : ''}>Select zone for Concern Hub</option>
+                          ${ZONES.map(z => `<option value="${z}" ${c.trkZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                         </select>
+                        ${suggestedConcernZone ? `<small class="muted">Suggested from LMH (${esc(zoneSuggestionHub)}): ${suggestedConcernZone} · select manually</small>` : ''}
                       </label>
                     </div>
                     <div class="payload-row"><span>Global Issue Type</span><b>${esc(gp.issueType)} (ISD ${gp.slaByZone.ISD}d / OSD ${gp.slaByZone.OSD}d / CTG ${gp.slaByZone.CTG}d)</b></div>
